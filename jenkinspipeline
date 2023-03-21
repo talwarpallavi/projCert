@@ -1,0 +1,65 @@
+pipeline {
+
+  agent {
+    label 'javaslave1'
+  }
+
+  tools {
+    maven 'Maven 3'
+  }
+
+  stages {
+    stage('INSTALL-PUPPET-AGENT') {
+      steps {
+        sh "echo 'downloading puppet agent'"
+        sh "sudo yum install puppet-agent -y"
+
+      }
+      post {
+        success {
+          sh "echo 'starting puppet'"
+          sh "sudo systemctl start puppet"
+        }
+      }
+    }
+    stage('INSTALL-DOCKER') {
+      parallel {
+        stage('Trigger Playbook') {
+          agent {
+            label "built-in"
+          }
+          steps {
+
+            sh 'ansible-playbook /etc/ansible/playbook/install-docker-v3.yml'
+
+          }
+
+        }
+      }
+    }
+
+    stage('SCM-Checkout') {
+      steps {
+        // Get code from a GitHub repository
+        git 'https://github.com/mannymo05/projCert.git'
+
+      }
+      
+    }
+    stage('Docker Build') {
+      steps {
+        sh 'docker build -t manish/phpapp:latest .'
+      }
+      post {
+        success {
+          sh "echo 'Docker Build Successfull'"
+        }
+        failure {
+          sh "echo 'deleting docker image because of failure'"
+          sh 'docker rm -f $(docker ps -a -q)'
+
+        }
+      }
+    }
+  }
+}
